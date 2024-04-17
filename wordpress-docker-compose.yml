@@ -1,0 +1,60 @@
+services:
+    nginx:
+        container_name: nginx
+        image: nginxproxy/nginx-proxy
+        restart: unless-stopped
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - /var/run/docker.sock:/tmp/docker.sock:ro
+            - /var/docker/nginx/html:/usr/share/nginx/html
+            - /var/docker/nginx/certs:/etc/nginx/certs
+            - /var/docker/nginx/vhost:/etc/nginx/vhost.d
+        logging:
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+    website:
+        image: wordpress
+        container_name: website
+        volumes:
+            - ./website:/var/www/html
+        environment:
+            WORDPRESS_DB_HOST: website-db:3306
+            WORDPRESS_DB_USER: website
+            WORDPRESS_DB_PASSWORD: password
+            WORDPRESS_DB_NAME: website
+            VIRTUAL_HOST: website.com
+            LETSENCRYPT_HOST: website.com
+        depends_on:
+            - website-db
+        restart: unless-stopped
+
+    website-db:
+        image: mariadb
+        container_name: website-db
+        volumes:
+            - ./website-db:/var/lib/mysql
+        environment:
+            MYSQL_ROOT_PASSWORD: rootpassword
+            MYSQL_DATABASE: website
+            MYSQL_USER: website
+            MYSQL_PASSWORD: password
+        restart: unless-stopped   
+
+# self signed
+  omgwtfssl:
+    image: paulczar/omgwtfssl
+    restart: "no"
+    volumes:
+      - certs:/certs
+    environment:
+      - SSL_SUBJECT=website.com
+      - CA_SUBJECT=my@example.com
+      - SSL_KEY=/certs/website.com.key
+      - SSL_CSR=/certs/website.com.csr
+      - SSL_CERT=/certs/website.com.crt
+    networks:
+      - proxy-tier         
